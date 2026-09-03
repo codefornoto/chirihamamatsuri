@@ -1314,9 +1314,9 @@ svg.leaflet-image-layer.leaflet-interactive path {
       // apiId を実際に表示する6台のIDへ差し替えてください。
       // icon / photo は指定どおり ./images/ 以下を参照します。
       TRACKERS: [
-        { apiId: 448,   label: "獅子舞", icon: "./images/icon1.png", photo: "./images/1.png", color: "#b52b1e" },
+        { apiId: 448, label: "獅子舞", icon: "./images/icon1.png", photo: "./images/1.png", color: "#b52b1e" },
         { apiId: 391, label: "山車", icon: "./images/icon2.png", photo: "./images/2.png", color: "#b52b1e" },
-        { apiId: 404, label: "キリコ",   icon: "./images/icon3.png", photo: "./images/3.png", color: "#b52b1e" },
+        { apiId: 404, label: "キリコ", icon: "./images/icon3.png", photo: "./images/3.png", color: "#b52b1e" },
         { apiId: 507, label: "神輿1", icon: "./images/icon4.png", photo: "./images/4.png", color: "#b52b1e" },
         { apiId: 440, label: "神輿2", icon: "./images/icon5.png", photo: "./images/5.png", color: "#b52b1e" },
         { apiId: 449, label: "神輿3", icon: "./images/icon6.png", photo: "./images/6.png", color: "#b52b1e" }
@@ -1397,19 +1397,44 @@ svg.leaflet-image-layer.leaflet-interactive path {
       })[char]);
     }
 
+    // スプレッドシートの update_at はUTC時刻として扱い、
+    // 表示時は必ず日本時間（Asia/Tokyo / UTC+9）へ変換する。
+    function parseUpdateDate(value) {
+      if (!value) return null;
+      if (value instanceof Date) return value;
+
+      let normalized = String(value).trim().replace(" ", "T");
+
+      // タイムゾーン表記が無い値（例: 2026-08-31 23:04:19）はUTCとして解釈。
+      if (!/(?:Z|[+-]\d\d:\d\d)$/.test(normalized)) {
+        normalized += "Z";
+      }
+
+      const date = new Date(normalized);
+      return Number.isNaN(date.getTime()) ? null : date;
+    }
+
     function formatDate(value) {
       if (!value) return "--";
-      const normalized = /(?:Z|[+-]\d\d:\d\d)$/.test(value) ? value : value.replace(" ", "T");
-      const date = new Date(normalized);
-      if (Number.isNaN(date.getTime())) return escapeHtml(value);
+      const date = parseUpdateDate(value);
+      if (!date) return escapeHtml(value);
+
       return new Intl.DateTimeFormat("ja-JP", {
-        month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit"
+        timeZone: "Asia/Tokyo",
+        month: "numeric",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
       }).format(date);
     }
 
     function isStale(updateAt) {
       if (!updateAt || CONFIG.DEMO_MODE) return false;
-      const timestamp = new Date(updateAt).getTime();
+      const date = parseUpdateDate(updateAt);
+      if (!date) return false;
+      const timestamp = date.getTime();
       if (Number.isNaN(timestamp)) return false;
       return Date.now() - timestamp > CONFIG.OFFLINE_MINUTES * 60 * 1000;
     }
