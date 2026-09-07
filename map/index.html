@@ -694,8 +694,16 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     * { box-sizing: border-box; }
     html, body { width: 100%; height: 100%; margin: 0; }
+    @supports (height: 100dvh) {
+      html, body { height: 100dvh; }
+    }
     body {
       overflow: hidden;
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      overscroll-behavior: none;
       color: var(--ink);
       background: var(--night);
       font-family: var(--font-mincho) !important;
@@ -933,7 +941,10 @@ svg.leaflet-image-layer.leaflet-interactive path {
       }
     }
 
-    .app-shell { height: 100%; display: grid; grid-template-rows: var(--header-h) 1fr; }
+    .app-shell { height: 100%; display: grid; grid-template-rows: var(--header-h) minmax(0, 1fr); }
+    @supports (height: 100dvh) {
+      .app-shell { height: 100dvh; }
+    }
     .topbar {
       position: relative;
       z-index: 1500;
@@ -1114,6 +1125,60 @@ svg.leaflet-image-layer.leaflet-interactive path {
     .popup-body { padding: 14px 15px 15px; text-align: left; }
     .popup-title { margin: 0 0 9px; padding-left: 9px; border-left: 4px solid var(--firework-red); color: #111; font-size: 1.02rem; font-weight: 800; line-height: 1.45; }
     .popup-text { margin: 0; color: #191919; font-size: .86rem; line-height: 1.75; white-space: pre-wrap; }
+    .popup-text.is-excerpt {
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 3;
+      overflow: hidden;
+      max-height: 5.25em;
+    }
+    .popup-detail-btn {
+      width: 100%;
+      margin-top: 10px;
+      padding: 9px 11px;
+      border: 1px solid #d8d0c8;
+      border-radius: 4px;
+      color: #2c2018;
+      background: #fffaf4;
+      font-size: .78rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .popup-detail-btn:hover { border-color: var(--firework-red); background: #fff4ee; }
+    .popup-update-note {
+      margin-top: 4px;
+      color: #b0a8a2;
+      font-size: .66rem;
+      line-height: 1.45;
+    }
+    .detail-photo {
+      width: calc(100% + 48px);
+      max-height: 260px;
+      margin: -27px -24px 20px;
+      overflow: hidden;
+      background: #eee;
+    }
+    .detail-photo img {
+      display: block;
+      width: 100%;
+      max-height: 260px;
+      object-fit: cover;
+    }
+    .detail-description {
+      margin: 0;
+      color: #2b211a;
+      font-size: .95rem;
+      line-height: 2;
+      white-space: pre-wrap;
+    }
+    .detail-meta {
+      margin-top: 18px;
+      padding-top: 12px;
+      border-top: 1px solid #e5dfd9;
+      color: #9b938d;
+      font-size: .74rem;
+      line-height: 1.7;
+    }
     .popup-meta { margin-top: 10px; padding-top: 9px; border-top: 1px solid #ededed; color: #aaa; font-size: .72rem; line-height: 1.6; }
     .popup-route {
       display: block;
@@ -1303,7 +1368,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
         <li>マーカー内の「Googleマップで経路を開く」から、現在地までの経路を確認できます。</li>
       </ul>
       <div class="modal-links">
-        <a class="modal-link" href="https://beeb-c4n.github.io/chirihamamatsuri/" target="_blank" rel="noopener noreferrer">公式サイト</a>
+        <a class="modal-link" href="https://codefornoto.github.io/chirihamamatsuri/" target="_blank" rel="noopener noreferrer">公式サイト</a>
         <a class="modal-link" href="https://drive.google.com/file/d/17_7HYbXeEicJ9CGXpR1LwHT8iJ92Ye5G/view?usp=sharing" target="_blank" rel="noopener noreferrer">日程表（PDF）</a>
       </div>
       <div class="modal-note">位置情報は約5分ごとに取得・更新しています。GPSや通信状況、更新のタイミングにより、表示位置が実際の現在地より遅れる場合があります。安全な場所に立ち止まってご利用ください。</div>
@@ -1314,6 +1379,18 @@ svg.leaflet-image-layer.leaflet-interactive path {
         Code for Toyama City<br>
         Code for Noto
       </div>
+    </section>
+  </div>
+
+  <div class="modal-backdrop" id="detailModal" aria-hidden="true">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="detailTitle">
+      <button class="modal-close" id="detailClose" type="button" aria-label="閉じる">×</button>
+      <div class="detail-photo" id="detailPhotoWrap">
+        <img id="detailPhoto" src="" alt="">
+      </div>
+      <h2 id="detailTitle"></h2>
+      <p class="detail-description" id="detailDescription"></p>
+      <div class="detail-meta" id="detailMeta"></div>
     </section>
   </div>
 
@@ -1413,6 +1490,8 @@ svg.leaflet-image-layer.leaflet-interactive path {
       markers: new Map(),
       refreshing: false,
       lastFetchedAt: null,
+      maxUpdateAt: null,
+      activeDetailId: null,
       autoTimer: null
     };
 
@@ -1465,6 +1544,23 @@ svg.leaflet-image-layer.leaflet-interactive path {
       map.setView(CONFIG.MAP_CENTER, CONFIG.MAP_ZOOM, { animate: false });
     }, { once: true });
     window.addEventListener("resize", () => map.invalidateSize({ pan: false }));
+
+    // スマホで別タブから戻ったときに、ブラウザUIの伸縮で地図がずれる対策。
+    function restoreViewportAfterReturn() {
+      window.scrollTo(0, 0);
+      requestAnimationFrame(() => {
+        map.invalidateSize({ pan: false });
+        requestAnimationFrame(() => map.invalidateSize({ pan: false }));
+      });
+    }
+
+    window.addEventListener("pageshow", restoreViewportAfterReturn);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") restoreViewportAfterReturn();
+    });
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener("resize", restoreViewportAfterReturn);
+    }
 
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>'"]/g, char => ({
@@ -1526,6 +1622,22 @@ svg.leaflet-image-layer.leaflet-interactive path {
       return Date.now() - timestamp > CONFIG.OFFLINE_MINUTES * 60 * 1000;
     }
 
+    function getMaxUpdateAt(points) {
+      let bestValue = null;
+      let bestTime = -Infinity;
+
+      for (const point of points || []) {
+        const date = parseUpdateDate(point.update_at);
+        if (!date) continue;
+        const t = date.getTime();
+        if (t > bestTime) {
+          bestTime = t;
+          bestValue = point.update_at;
+        }
+      }
+      return bestValue;
+    }
+
     function markerIcon(tracker, stale) {
       const fallback = escapeHtml(tracker.label.replace(/\s/g, ""));
       const html = `
@@ -1538,10 +1650,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
     function popupHtml(tracker, point) {
       const description = tracker.description || "";
-      const updated = CONFIG.DEMO_MODE ? "デモ表示" : formatDate(point.update_at);
-      const staleLabel = isStale(point.update_at) ? "（通信状況を確認中）" : "";
+      const updated = CONFIG.DEMO_MODE
+        ? "デモ表示"
+        : formatDate(state.maxUpdateAt || point.update_at);
       const lat = Number(point.lat);
       const lon = Number(point.lon);
+
       return `
         <article class="popup-card">
           <div class="popup-photo">
@@ -1550,8 +1664,12 @@ svg.leaflet-image-layer.leaflet-interactive path {
           </div>
           <div class="popup-body">
             <h2 class="popup-title">${escapeHtml(tracker.label)}</h2>
-            ${description ? `<p class="popup-text">${escapeHtml(description)}</p>` : ""}
-            <div class="popup-meta">最終更新：${updated} ${staleLabel}</div>
+            ${description ? `<p class="popup-text is-excerpt">${escapeHtml(description)}</p>
+              <button class="popup-detail-btn" type="button" data-detail-id="${escapeHtml(tracker.apiId)}">紹介文を詳しく見る</button>` : ""}
+            <div class="popup-meta">
+              最終更新：${updated}
+              <div class="popup-update-note">更新は5分間隔です。最大5分程度、表示の更新が遅れる場合があります。</div>
+            </div>
             <a class="popup-route" href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}"
                target="_blank" rel="noopener noreferrer">Googleマップで経路を開く</a>
           </div>
@@ -1710,6 +1828,7 @@ svg.leaflet-image-layer.leaflet-interactive path {
 
       try {
         const points = CONFIG.DEMO_MODE ? demoPoints() : await fetchLivePoints();
+        state.maxUpdateAt = getMaxUpdateAt(points);
         renderMarkers(points);
         state.lastFetchedAt = new Date();
         const count = points.length;
@@ -1726,6 +1845,49 @@ svg.leaflet-image-layer.leaflet-interactive path {
       }
     }
 
+    const detailModal = document.getElementById("detailModal");
+    const detailClose = document.getElementById("detailClose");
+    const detailPhoto = document.getElementById("detailPhoto");
+    const detailPhotoWrap = document.getElementById("detailPhotoWrap");
+    const detailTitle = document.getElementById("detailTitle");
+    const detailDescription = document.getElementById("detailDescription");
+    const detailMeta = document.getElementById("detailMeta");
+
+    function openDetailModal(apiId) {
+      const tracker = CONFIG.TRACKERS.find(item => String(item.apiId) === String(apiId));
+      if (!tracker) return;
+
+      state.activeDetailId = String(apiId);
+      detailTitle.textContent = tracker.label;
+      detailDescription.textContent = tracker.description || "";
+      detailPhoto.src = tracker.photo;
+      detailPhoto.alt = `${tracker.label}の紹介写真`;
+      detailPhotoWrap.style.display = "block";
+      detailPhoto.onerror = () => { detailPhotoWrap.style.display = "none"; };
+
+      const updated = CONFIG.DEMO_MODE ? "デモ表示" : formatDate(state.maxUpdateAt);
+      detailMeta.innerHTML = `最終更新：${escapeHtml(updated)}<br>更新は5分間隔です。最大5分程度、表示の更新が遅れる場合があります。`;
+
+      detailModal.classList.add("is-open");
+      detailModal.setAttribute("aria-hidden", "false");
+      detailClose.focus();
+    }
+
+    function closeDetailModal() {
+      detailModal.classList.remove("is-open");
+      detailModal.setAttribute("aria-hidden", "true");
+      state.activeDetailId = null;
+    }
+
+    document.getElementById("map").addEventListener("click", event => {
+      const button = event.target.closest(".popup-detail-btn");
+      if (button) openDetailModal(button.dataset.detailId);
+    });
+    detailClose.addEventListener("click", closeDetailModal);
+    detailModal.addEventListener("click", event => {
+      if (event.target === detailModal) closeDetailModal();
+    });
+
     const infoModal = document.getElementById("infoModal");
     const infoButton = document.getElementById("infoBtn");
     const modalClose = document.getElementById("modalClose");
@@ -1740,7 +1902,11 @@ svg.leaflet-image-layer.leaflet-interactive path {
     infoButton.addEventListener("click", () => setModal(true));
     modalClose.addEventListener("click", () => setModal(false));
     infoModal.addEventListener("click", event => { if (event.target === infoModal) setModal(false); });
-    document.addEventListener("keydown", event => { if (event.key === "Escape" && infoModal.classList.contains("is-open")) setModal(false); });
+    document.addEventListener("keydown", event => {
+      if (event.key !== "Escape") return;
+      if (detailModal.classList.contains("is-open")) closeDetailModal();
+      else if (infoModal.classList.contains("is-open")) setModal(false);
+    });
     document.getElementById("refreshBtn").addEventListener("click", () => refresh({ manual: true }));
 
     document.getElementById("modeNotice").hidden = !CONFIG.DEMO_MODE;
