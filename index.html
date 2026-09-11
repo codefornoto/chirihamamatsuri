@@ -147,9 +147,6 @@
     .schedule-note { margin-top:20px; color:#6c645b; font-size:.9rem; }
     .schedule-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
     .schedule-actions .button { margin:0; border-color:#7d746a; background:transparent; color:var(--ink); cursor:pointer; }
-    .route-place-button { padding:0 0 2px; border:0; border-bottom:1px solid currentColor; background:transparent; color:inherit; cursor:pointer; font-weight:700; }
-    .route-place-button::after { content:" →"; font-family:Arial,sans-serif; }
-
     .story-section { padding:0; background:#0d0c0a; color:#fff; }
     .story-grid { display:grid; grid-template-columns:1fr 1fr; min-height:760px; }
     .story-image { position:relative; overflow:hidden; background:#171512; color:rgba(255,255,255,.5); }
@@ -371,9 +368,9 @@
         <div class="schedule-panel" id="panel12" role="tabpanel" aria-labelledby="tab12">
           <div class="timeline">
             <article class="event"><time>6:00–7:00</time><h3>祭典</h3><div class="place">千里浜神社</div></article>
-            <article class="event"><time>7:15–11:35</time><h3>なぎさ町会</h3><div class="place"><button class="route-place-button" type="button" data-open-modal="routeModal" data-route-day="12">町内巡行</button></div></article>
-            <article class="event"><time>11:35–15:15</time><h3>金比羅町会</h3><div class="place"><button class="route-place-button" type="button" data-open-modal="routeModal" data-route-day="12">町内巡行</button></div></article>
-            <article class="event"><time>15:15–19:15</time><h3>宇賀町会</h3><div class="place"><button class="route-place-button" type="button" data-open-modal="routeModal" data-route-day="12">町内巡行</button></div></article>
+            <article class="event"><time>7:15–11:35</time><h3>なぎさ町会</h3><div class="place">町内巡行</div></article>
+            <article class="event"><time>11:35–15:15</time><h3>金比羅町会</h3><div class="place">町内巡行</div></article>
+            <article class="event"><time>15:15–19:15</time><h3>宇賀町会</h3><div class="place">町内巡行</div></article>
             <article class="event featured"><time>19:30–20:30</time><h3>浸食防止祈願祭・千里浜まつり</h3><div class="place">千里浜海岸</div></article>
             <article class="event"><time>20:30–22:00</time><h3>獅子舞イベント</h3><div class="place">千里浜保育園駐車場</div></article>
             <article class="event"><time>22:00–23:00</time><h3>神輿御練</h3><div class="place">千里浜神社</div></article>
@@ -383,8 +380,8 @@
         <div class="schedule-panel" id="panel13" role="tabpanel" aria-labelledby="tab13" hidden>
           <div class="timeline">
             <article class="event"><time>10:00–11:00</time><h3>祭典</h3><div class="place">千里浜神社</div></article>
-            <article class="event"><time>11:00–15:30</time><h3>白山町会</h3><div class="place"><button class="route-place-button" type="button" data-open-modal="routeModal" data-route-day="13">町内巡行</button></div></article>
-            <article class="event"><time>15:30–20:00</time><h3>大宮町会</h3><div class="place"><button class="route-place-button" type="button" data-open-modal="routeModal" data-route-day="13">町内巡行</button></div></article>
+            <article class="event"><time>11:00–15:30</time><h3>白山町会</h3><div class="place">町内巡行</div></article>
+            <article class="event"><time>15:30–20:00</time><h3>大宮町会</h3><div class="place">町内巡行</div></article>
             <article class="event"><time>20:00–23:00</time><h3>神輿御練</h3><div class="place">千里浜神社</div></article>
             <article class="event"><time>23:00–23:15</time><h3>祭典</h3><div class="place">千里浜神社</div></article>
           </div>
@@ -683,7 +680,6 @@
         routePanels.forEach(panel => panel.hidden = panel.dataset.routePanel !== day);
       };
       routeButtons.forEach(button => button.addEventListener('click', () => selectRoute(button.dataset.routeSelect)));
-      document.querySelectorAll('[data-route-day]').forEach(button => button.addEventListener('click', () => selectRoute(button.dataset.routeDay)));
       document.querySelectorAll('.route-image').forEach(img => {
         const show = () => img.classList.add('loaded');
         if (img.complete && img.naturalWidth) show();
